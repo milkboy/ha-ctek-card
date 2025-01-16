@@ -1,0 +1,7 @@
+{
+  "name": "ha-ctek-card",
+  "packageManager": "yarn@3.6.1",
+  "dependencies": {
+    "prettier": "^3.4.2"
+  }
+}
