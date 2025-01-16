@@ -2,5 +2,7 @@
     "name": "CTEK Njord card",
     "render_readme": true,
     "filename": "ha-ctek-card.js",
-    "content-in-root": true
+    "content_in_root": true,
+    "homeassistant": "2025.1",
+    "hacs": "2.0.1"
 }
