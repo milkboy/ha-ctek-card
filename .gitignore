@@ -1,6 +1,6 @@
 /node_modules/
 /.rpt2_cache/
 package-lock.json
-/dist.yarn/cache
+.yarn/cache
 .yarn/install-state.gz
 .yarn/unplugged

@@ -162,7 +162,7 @@ class CTEKNjordGoCard extends HTMLElement {
 
   doQueryElements() {
     const card = this._elements.card;
-    this._elements.error = card.querySelector(".ctekj-error");
+    this._elements.error = card.querySelector(".ctek-error");
     this._elements.dl = card.querySelector(".ctek-dl");
     this._elements.topic = card.querySelector(".ctek-dt");
     this._elements.toggle = card.querySelector(".ctek-toggle");
