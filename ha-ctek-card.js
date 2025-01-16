@@ -3,8 +3,10 @@ class CTEKNjordGoCard extends HTMLElement {
     config;
     content;
 
-    // required
     setConfig(config) {
+        if (!config.entity) {
+            throw new Error('Entity is not defined')
+        }
         this.config = config;
     }
 
@@ -37,3 +39,10 @@ class CTEKNjordGoCard extends HTMLElement {
 }
 
 customElements.define('ctek-njord-go-card', CTEKNjordGoCard);
+
+window.customCards = window.customCards || [];
+window.customCards.push({
+    type: "ctek-njord-go-card",
+    name: "CTEK Njord Go",
+    description: "Custom card for the Njord Go charger" // optional
+});
