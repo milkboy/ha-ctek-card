@@ -1,4 +1,4 @@
-const CARD_VERSION = "0.2.0";
+const CARD_VERSION = "0.3.0";
 
 console.info(
   `%c CTEK-NJORD-GO-CARD %c v${CARD_VERSION} `,
@@ -8,33 +8,31 @@ console.info(
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
-/**
- * Given one CTEK entity id, derive the common prefix so we can find siblings.
- * e.g.  "sensor.ctek_abc123_connector_status_1" → "ctek_abc123"
- */
-function ctekPrefix(entityId) {
-  // entity ids look like  <domain>.ctek_<id>_<description>
-  const name = entityId.split(".").pop(); // "ctek_abc123_connector_status_1"
-  // The prefix is everything up to and including the device-id segment.
-  // Device descriptions are defined keys, so we match "ctek_<alphanum>"
-  const m = name.match(/^(ctek_[^_]+)/);
-  return m ? m[1] : name;
+/** Find all entity IDs belonging to a given device_id via the entity registry */
+function entitiesForDevice(hass, deviceId) {
+  const result = {};
+  if (!hass.entities) return result;
+  for (const [eid, entry] of Object.entries(hass.entities)) {
+    if (entry.device_id === deviceId) {
+      result[eid] = entry;
+    }
+  }
+  return result;
 }
 
-function findEntity(hass, prefix, pattern) {
-  return Object.keys(hass.states).find(
-    (eid) => eid.includes(prefix) && pattern.test(eid),
-  );
+/** From a map of entity registry entries, find the first entity_id matching a regex */
+function findEntity(entityMap, pattern) {
+  return Object.keys(entityMap).find((eid) => pattern.test(eid));
 }
 
-// ── Config editor ────────────────────────────────────────────────────────────
-
-// Ensure ha-entity-picker is loaded (it's lazy-loaded in HA frontend)
+// Ensure HA lazy-loaded components (ha-device-picker etc.) are available
 (async () => {
   if (window.loadCardHelpers) {
     await window.loadCardHelpers();
   }
 })();
+
+// ── Config editor ────────────────────────────────────────────────────────────
 
 class CTEKNjordGoCardEditor extends HTMLElement {
   _config = {};
@@ -53,7 +51,6 @@ class CTEKNjordGoCardEditor extends HTMLElement {
   _render() {
     if (!this._hass) return;
 
-    // Only rebuild DOM on first render; subsequent calls just update values
     if (!this._rendered) {
       const wrapper = document.createElement("div");
       wrapper.style.padding = "16px";
@@ -64,16 +61,15 @@ class CTEKNjordGoCardEditor extends HTMLElement {
 
       const desc = document.createElement("p");
       desc.style.cssText = "margin-bottom:12px;color:var(--secondary-text-color);font-size:0.9em;";
-      desc.textContent = "Pick any CTEK entity \u2013 all related entities for the same device will be discovered automatically.";
+      desc.textContent = "Select your CTEK charger device.";
       wrapper.appendChild(desc);
 
-      this._picker = document.createElement("ha-entity-picker");
-      this._picker.allowCustomEntity = true;
+      this._picker = document.createElement("ha-device-picker");
       wrapper.appendChild(this._picker);
 
       this._picker.addEventListener("value-changed", (ev) => {
-        if (ev.detail.value === this._config.entity) return;
-        this._config = { ...this._config, entity: ev.detail.value };
+        if (ev.detail.value === this._config.device_id) return;
+        this._config = { ...this._config, device_id: ev.detail.value };
         this._dispatch();
       });
 
@@ -97,17 +93,23 @@ class CTEKNjordGoCardEditor extends HTMLElement {
       this._rendered = true;
     }
 
-    // Update values on every render (hass or config change)
+    // Update picker values on every render
     this._picker.hass = this._hass;
-    this._picker.value = this._config.entity || "";
-    this._picker.label = "Entity (any CTEK entity)";
+    this._picker.value = this._config.device_id || "";
+    this._picker.label = "Device";
 
-    // Filter to CTEK entities only
-    const ctekIds = Object.keys(this._hass.entities || {})
-      .filter((eid) => this._hass.entities[eid].platform === "ctek");
-    if (ctekIds.length > 0) {
-      this._picker.includeEntities = ctekIds;
-    }
+    // Filter to CTEK integration devices only
+    this._picker.deviceFilter = (device) => {
+      // hass.devices has entries with identifiers: Set of [domain, id] tuples
+      // For config entries, we check if any entity on this device belongs to "ctek" platform
+      if (!this._hass.entities) return true;
+      for (const entry of Object.values(this._hass.entities)) {
+        if (entry.device_id === device.id && entry.platform === "ctek") {
+          return true;
+        }
+      }
+      return false;
+    };
 
     this._titleInput.value = this._config.title || "";
   }
@@ -141,7 +143,7 @@ const STATUS_META = {
 class CTEKNjordGoCard extends HTMLElement {
   _config = {};
   _hass;
-  _prefix;
+  _deviceEntities = {};
   _entities = {};
   _root;
 
@@ -152,18 +154,22 @@ class CTEKNjordGoCard extends HTMLElement {
   }
 
   static getStubConfig(hass) {
-    const entity = Object.keys(hass.states).find(
-      (eid) => eid.includes("ctek_") && /connector_status/.test(eid),
-    );
-    return { entity: entity || "", title: "" };
+    // Find the first CTEK device
+    if (hass.entities) {
+      for (const entry of Object.values(hass.entities)) {
+        if (entry.platform === "ctek" && entry.device_id) {
+          return { device_id: entry.device_id, title: "" };
+        }
+      }
+    }
+    return { device_id: "", title: "" };
   }
 
   setConfig(config) {
-    if (!config.entity) {
-      throw new Error("Please select a CTEK entity in the card configuration.");
+    if (!config.device_id) {
+      throw new Error("Please select a CTEK device in the card configuration.");
     }
     this._config = config;
-    this._prefix = ctekPrefix(config.entity);
     this._buildCard();
   }
 
@@ -181,10 +187,10 @@ class CTEKNjordGoCard extends HTMLElement {
 
   _discoverEntities() {
     const h = this._hass;
-    const p = this._prefix;
-    if (!h || !p) return;
+    if (!h) return;
 
-    const f = (pat) => findEntity(h, p, pat);
+    this._deviceEntities = entitiesForDevice(h, this._config.device_id);
+    const f = (pat) => findEntity(this._deviceEntities, pat);
 
     this._entities = {
       connectorStatus:  f(/sensor\..*connector_status/),
@@ -249,22 +255,22 @@ class CTEKNjordGoCard extends HTMLElement {
           <div class="metrics">
             <div class="metric" id="m-power">
               <ha-icon icon="mdi:flash"></ha-icon>
-              <div><span class="metric-val">—</span><span class="metric-unit">W</span></div>
+              <div><span class="metric-val">\u2014</span><span class="metric-unit">W</span></div>
               <span class="metric-label">Power</span>
             </div>
             <div class="metric" id="m-current">
               <ha-icon icon="mdi:current-ac"></ha-icon>
-              <div><span class="metric-val">—</span><span class="metric-unit">A</span></div>
+              <div><span class="metric-val">\u2014</span><span class="metric-unit">A</span></div>
               <span class="metric-label">Current</span>
             </div>
             <div class="metric" id="m-voltage">
               <ha-icon icon="mdi:sine-wave"></ha-icon>
-              <div><span class="metric-val">—</span><span class="metric-unit">V</span></div>
+              <div><span class="metric-val">\u2014</span><span class="metric-unit">V</span></div>
               <span class="metric-label">Voltage</span>
             </div>
             <div class="metric" id="m-energy">
               <ha-icon icon="mdi:battery-charging-100"></ha-icon>
-              <div><span class="metric-val">—</span><span class="metric-unit">Wh</span></div>
+              <div><span class="metric-val">\u2014</span><span class="metric-unit">Wh</span></div>
               <span class="metric-label">Energy</span>
             </div>
           </div>
@@ -331,7 +337,7 @@ class CTEKNjordGoCard extends HTMLElement {
     statusIcon.style.color = meta.color;
     r.querySelector(".status-label").textContent = meta.label || statusVal;
 
-    // Status subtitle (start date or energy during charging)
+    // Status subtitle (start date during charging)
     const startDate = this._val("startDate");
     const subText = r.querySelector(".status-sub");
     if (statusVal === "Charging" && startDate && startDate !== "unknown" && startDate !== "unavailable") {
@@ -394,16 +400,19 @@ class CTEKNjordGoCard extends HTMLElement {
       const num = parseFloat(val);
       el.textContent = isNaN(num) ? val : (num % 1 === 0 ? num.toString() : num.toFixed(1));
     } else {
-      el.textContent = "—";
+      el.textContent = "\u2014";
     }
   }
 
   _deviceName() {
-    // try to get friendly name from the connector status sensor
     const s = this._state("connectorStatus");
     if (s && s.attributes && s.attributes.friendly_name) {
-      // strip the description suffix to get device name
       return s.attributes.friendly_name.replace(/\s*Connector.*$/i, "").trim() || "Njord GO";
+    }
+    // Try device registry name
+    if (this._hass.devices && this._config.device_id) {
+      const dev = this._hass.devices[this._config.device_id];
+      if (dev) return dev.name_by_user || dev.name || "Njord GO";
     }
     return "";
   }
