@@ -1,4 +1,4 @@
-const CARD_VERSION = "0.4.0";
+const CARD_VERSION = "0.4.1";
 
 console.info(
   `%c CTEK-NJORD-GO-CARD %c v${CARD_VERSION} `,
@@ -231,8 +231,11 @@ class CTEKNjordGoCard extends HTMLElement {
   }
 
   set hass(hass) {
+    const prevHass = this._hass;
     this._hass = hass;
-    this._discoverEntities();
+    if (!prevHass || prevHass.entities !== hass.entities) {
+      this._discoverEntities();
+    }
     this._update();
   }
 
