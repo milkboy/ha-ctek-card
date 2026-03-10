@@ -29,6 +29,13 @@ function findEntity(hass, prefix, pattern) {
 
 // ── Config editor ────────────────────────────────────────────────────────────
 
+// Ensure ha-entity-picker is loaded (it's lazy-loaded in HA frontend)
+(async () => {
+  if (window.loadCardHelpers) {
+    await window.loadCardHelpers();
+  }
+})();
+
 class CTEKNjordGoCardEditor extends HTMLElement {
   _config = {};
   _hass;
