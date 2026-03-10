@@ -303,34 +303,36 @@ class CTEKNjordGoCard extends HTMLElement {
               ${njordSvg()}
             </div>
             <div class="device-info">
-              <div class="status-section">
-                <span class="status-label"></span>
-                <span class="status-sub"></span>
-              </div>
-              <div class="metrics">
-                <div class="metric" id="m-power">
-                  <ha-icon icon="mdi:flash"></ha-icon>
-                  <span class="metric-val">\u2014</span><span class="metric-unit">W</span>
-                  <span class="metric-label">Power</span>
+              <div class="status-row">
+                <div class="status-section">
+                  <span class="status-label"></span>
+                  <span class="status-sub"></span>
                 </div>
+                <div class="charge-toggle">
+                  <ha-icon class="toggle-btn" icon="mdi:power"></ha-icon>
+                </div>
+              </div>
+              <div class="key-metrics">
+                <div class="key-metric" id="m-power">
+                  <span class="key-metric-val">\u2014</span>
+                  <span class="key-metric-unit">kW</span>
+                  <span class="key-metric-label">Power</span>
+                </div>
+                <div class="key-metric" id="m-energy">
+                  <span class="key-metric-val">\u2014</span>
+                  <span class="key-metric-unit">kWh</span>
+                  <span class="key-metric-label">Session</span>
+                </div>
+              </div>
+              <div class="secondary-metrics">
                 <div class="metric" id="m-voltage">
                   <ha-icon icon="mdi:sine-wave"></ha-icon>
                   <span class="metric-val">\u2014</span><span class="metric-unit">V</span>
-                  <span class="metric-label">Voltage</span>
                 </div>
                 <div class="metric" id="m-current">
                   <ha-icon icon="mdi:current-ac"></ha-icon>
                   <span class="metric-val">\u2014</span><span class="metric-unit">A</span>
-                  <span class="metric-label">Current</span>
                 </div>
-                <div class="metric" id="m-energy">
-                  <ha-icon icon="mdi:battery-charging-100"></ha-icon>
-                  <span class="metric-val">\u2014</span><span class="metric-unit">Wh</span>
-                  <span class="metric-label">Energy</span>
-                </div>
-              </div>
-              <div class="charge-toggle">
-                <ha-icon class="toggle-btn" icon="mdi:power"></ha-icon>
               </div>
             </div>
           </div>
@@ -493,15 +495,18 @@ class CTEKNjordGoCard extends HTMLElement {
       toggleBtn.style.display = "none";
     }
 
-    // Metrics
-    const metricsEl = r.querySelector(".metrics");
-    metricsEl.style.display = isActiveSession ? "" : "none";
+    // Key metrics — always visible: power in kW, energy in kWh
+    const powerRaw = this._val("power");
+    const energyRaw = this._val("energy");
+    this._setKeyMetric(r, "m-power", powerRaw, 1000, 1);  // W → kW
+    this._setKeyMetric(r, "m-energy", energyRaw, 1000, 2); // Wh → kWh
 
+    // Secondary metrics — only during active session
+    const secondaryEl = r.querySelector(".secondary-metrics");
+    secondaryEl.style.display = isActiveSession ? "" : "none";
     if (isActiveSession) {
-      this._setMetric(r, "m-power", this._val("power"));
-      this._setMetric(r, "m-current", this._val("current"));
       this._setMetric(r, "m-voltage", this._val("voltage"));
-      this._setMetric(r, "m-energy", this._val("energy"));
+      this._setMetric(r, "m-current", this._val("current"));
     }
 
     // Max current slider
@@ -543,6 +548,18 @@ class CTEKNjordGoCard extends HTMLElement {
     if (val && val !== "unknown" && val !== "unavailable") {
       const num = parseFloat(val);
       el.textContent = isNaN(num) ? val : (num % 1 === 0 ? num.toString() : num.toFixed(1));
+    } else {
+      el.textContent = "\u2014";
+    }
+  }
+
+  /** Set a key metric, dividing raw value by divisor and rounding to decimals */
+  _setKeyMetric(root, id, val, divisor, decimals) {
+    const el = root.querySelector(`#${id} .key-metric-val`);
+    if (!el) return;
+    if (val && val !== "unknown" && val !== "unavailable") {
+      const num = parseFloat(val) / divisor;
+      el.textContent = isNaN(num) ? val : num.toFixed(decimals);
     } else {
       el.textContent = "\u2014";
     }
@@ -667,7 +684,12 @@ class CTEKNjordGoCard extends HTMLElement {
         gap: 10px;
       }
 
-      /* ── status ── */
+      /* ── status row ── */
+      .status-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
       .status-section {
         display: flex;
         flex-direction: column;
@@ -697,11 +719,37 @@ class CTEKNjordGoCard extends HTMLElement {
         background: rgba(128,128,128,0.15);
       }
 
-      /* ── metrics grid ── */
-      .metrics {
-        display: grid;
-        grid-template-columns: repeat(2, 1fr);
-        gap: 6px;
+      /* ── key metrics (power + energy, always visible) ── */
+      .key-metrics {
+        display: flex;
+        gap: 16px;
+      }
+      .key-metric {
+        display: flex;
+        align-items: baseline;
+        gap: 3px;
+        flex-wrap: wrap;
+      }
+      .key-metric-val {
+        font-size: 1.6em;
+        font-weight: 700;
+        line-height: 1;
+      }
+      .key-metric-unit {
+        font-size: 0.8em;
+        color: var(--secondary-text-color);
+        font-weight: 500;
+      }
+      .key-metric-label {
+        width: 100%;
+        font-size: 0.72em;
+        color: var(--secondary-text-color);
+      }
+
+      /* ── secondary metrics (voltage + current, during charging) ── */
+      .secondary-metrics {
+        display: flex;
+        gap: 12px;
       }
       .metric {
         display: flex;
@@ -719,9 +767,6 @@ class CTEKNjordGoCard extends HTMLElement {
       .metric-unit {
         font-size: 0.8em;
         color: var(--secondary-text-color);
-      }
-      .metric-label {
-        display: none;
       }
 
       /* ── controls ── */
@@ -744,6 +789,7 @@ class CTEKNjordGoCard extends HTMLElement {
         font-size: 0.85em;
         color: var(--secondary-text-color);
         white-space: nowrap;
+        min-width: 9em;
       }
       .ctrl-slider {
         flex: 1;
