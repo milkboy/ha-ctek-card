@@ -48,40 +48,53 @@ class CTEKNjordGoCardEditor extends HTMLElement {
 
     // Only rebuild DOM on first render; subsequent calls just update values
     if (!this._rendered) {
-      this.innerHTML = `
-        <div style="padding: 16px;">
-          <p><b>CTEK Njord GO Card</b></p>
-          <p style="margin-bottom:12px;color:var(--secondary-text-color);font-size:0.9em;">
-            Pick any CTEK entity – all related entities for the same device will be discovered automatically.
-          </p>
-          <ha-entity-picker
-            allow-custom-entity
-          ></ha-entity-picker>
-          <label for="title" style="display:block;margin-top:12px;margin-bottom:4px;font-weight:500;">Title (optional)</label>
-          <input id="title" type="text"
-            style="width:100%;padding:8px;border-radius:4px;border:1px solid var(--divider-color);background:var(--card-background-color);color:var(--primary-text-color);box-sizing:border-box;"
-            placeholder="Njord GO" />
-        </div>
-      `;
+      const wrapper = document.createElement("div");
+      wrapper.style.padding = "16px";
 
-      const picker = this.querySelector("ha-entity-picker");
-      picker.addEventListener("value-changed", (ev) => {
+      const heading = document.createElement("p");
+      heading.innerHTML = "<b>CTEK Njord GO Card</b>";
+      wrapper.appendChild(heading);
+
+      const desc = document.createElement("p");
+      desc.style.cssText = "margin-bottom:12px;color:var(--secondary-text-color);font-size:0.9em;";
+      desc.textContent = "Pick any CTEK entity \u2013 all related entities for the same device will be discovered automatically.";
+      wrapper.appendChild(desc);
+
+      this._picker = document.createElement("ha-entity-picker");
+      this._picker.allowCustomEntity = true;
+      wrapper.appendChild(this._picker);
+
+      this._picker.addEventListener("value-changed", (ev) => {
+        if (ev.detail.value === this._config.entity) return;
         this._config = { ...this._config, entity: ev.detail.value };
         this._dispatch();
       });
-      this.querySelector("#title").addEventListener("input", (ev) => {
+
+      const label = document.createElement("label");
+      label.style.cssText = "display:block;margin-top:12px;margin-bottom:4px;font-weight:500;";
+      label.textContent = "Title (optional)";
+      wrapper.appendChild(label);
+
+      this._titleInput = document.createElement("input");
+      this._titleInput.type = "text";
+      this._titleInput.placeholder = "Njord GO";
+      this._titleInput.style.cssText = "width:100%;padding:8px;border-radius:4px;border:1px solid var(--divider-color);background:var(--card-background-color);color:var(--primary-text-color);box-sizing:border-box;";
+      wrapper.appendChild(this._titleInput);
+
+      this._titleInput.addEventListener("input", (ev) => {
         this._config = { ...this._config, title: ev.target.value };
         this._dispatch();
       });
+
+      this.appendChild(wrapper);
       this._rendered = true;
     }
 
     // Update values on every render (hass or config change)
-    const picker = this.querySelector("ha-entity-picker");
-    picker.hass = this._hass;
-    picker.value = this._config.entity || "";
-    picker.label = "Entity (any CTEK entity)";
-    this.querySelector("#title").value = this._config.title || "";
+    this._picker.hass = this._hass;
+    this._picker.value = this._config.entity || "";
+    this._picker.label = "Entity (any CTEK entity)";
+    this._titleInput.value = this._config.title || "";
   }
 
   _dispatch() {
