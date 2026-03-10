@@ -1,4 +1,4 @@
-const CARD_VERSION = "0.3.0";
+const CARD_VERSION = "0.4.0";
 
 console.info(
   `%c CTEK-NJORD-GO-CARD %c v${CARD_VERSION} `,
@@ -35,6 +35,62 @@ function findByKey(entityMap, translationKey) {
     await window.loadCardHelpers();
   }
 })();
+
+// ── Njord GO SVG ─────────────────────────────────────────────────────────────
+
+function njordSvg() {
+  return `
+    <svg viewBox="0 0 100 160" xmlns="http://www.w3.org/2000/svg" class="njord-svg">
+      <!-- Cable coming from top -->
+      <path d="M50 0 Q50 12 48 18" stroke="var(--secondary-text-color)" stroke-width="3.5"
+            fill="none" stroke-linecap="round"/>
+
+      <!-- Main body -->
+      <rect x="22" y="18" width="56" height="95" rx="10" ry="10"
+            fill="var(--card-background-color, #fff)"
+            stroke="var(--secondary-text-color)" stroke-width="1.5"/>
+
+      <!-- Inner face / bezel -->
+      <rect x="28" y="24" width="44" height="60" rx="5" ry="5"
+            fill="var(--primary-background-color, #f5f5f5)"
+            stroke="var(--divider-color)" stroke-width="0.8"/>
+
+      <!-- LED bar (the status indicator) -->
+      <rect class="led-bar" x="32" y="30" width="36" height="6" rx="3" ry="3"
+            fill="#555" opacity="0.3"/>
+      <!-- LED glow overlay -->
+      <rect class="led-glow" x="32" y="30" width="36" height="6" rx="3" ry="3"
+            fill="transparent"/>
+
+      <!-- CTEK logo text -->
+      <text x="50" y="58" text-anchor="middle" font-family="Arial, sans-serif"
+            font-size="10" font-weight="bold" letter-spacing="0.5"
+            fill="var(--primary-text-color)">CTEK</text>
+
+      <!-- Battery level indicator (4 segments) -->
+      <g class="battery-segments" opacity="0">
+        <rect class="bat-seg bat-seg-1" x="33" y="65" width="7" height="10" rx="1"
+              fill="var(--success-color, #44b556)" opacity="0.25"/>
+        <rect class="bat-seg bat-seg-2" x="42" y="65" width="7" height="10" rx="1"
+              fill="var(--success-color, #44b556)" opacity="0.25"/>
+        <rect class="bat-seg bat-seg-3" x="51" y="65" width="7" height="10" rx="1"
+              fill="var(--success-color, #44b556)" opacity="0.25"/>
+        <rect class="bat-seg bat-seg-4" x="60" y="65" width="7" height="10" rx="1"
+              fill="var(--success-color, #44b556)" opacity="0.25"/>
+      </g>
+
+      <!-- Bottom section - plug pins -->
+      <rect x="35" y="113" width="6" height="16" rx="1.5"
+            fill="var(--secondary-text-color)"/>
+      <rect x="59" y="113" width="6" height="16" rx="1.5"
+            fill="var(--secondary-text-color)"/>
+
+      <!-- Ground pin (middle, shorter) -->
+      <rect x="47" y="113" width="6" height="12" rx="1.5"
+            fill="var(--secondary-text-color)"/>
+    </svg>
+  `;
+}
 
 // ── Config editor ────────────────────────────────────────────────────────────
 
@@ -104,8 +160,6 @@ class CTEKNjordGoCardEditor extends HTMLElement {
 
     // Filter to CTEK integration devices only
     this._picker.deviceFilter = (device) => {
-      // hass.devices has entries with identifiers: Set of [domain, id] tuples
-      // For config entries, we check if any entity on this device belongs to "ctek" platform
       if (!this._hass.entities) return true;
       for (const entry of Object.values(this._hass.entities)) {
         if (entry.device_id === device.id && entry.platform === "ctek") {
@@ -133,15 +187,15 @@ customElements.define("ctek-njord-go-card-editor", CTEKNjordGoCardEditor);
 // ── Main card ────────────────────────────────────────────────────────────────
 
 const STATUS_META = {
-  Available:     { icon: "mdi:power-plug-off",          color: "var(--state-icon-color)",         label: "Available" },
-  Charging:      { icon: "mdi:battery-charging-medium",  color: "var(--state-active-color, #44b556)", label: "Charging" },
-  SuspendedEVSE: { icon: "mdi:timer-pause",              color: "var(--warning-color, #ff9800)",   label: "Suspended (EVSE)" },
-  SuspendedEV:   { icon: "mdi:battery",                  color: "var(--warning-color, #ff9800)",   label: "Suspended (EV)" },
-  Preparing:     { icon: "mdi:battery-alert",             color: "var(--info-color, #2196f3)",     label: "Preparing" },
-  Finishing:     { icon: "mdi:check-circle",              color: "var(--success-color, #44b556)",  label: "Finishing" },
-  Faulted:       { icon: "mdi:alert-circle",              color: "var(--error-color, #db4437)",    label: "Faulted" },
-  Offline:       { icon: "mdi:power-plug-off-outline",    color: "var(--disabled-text-color)",     label: "Offline" },
-  Unavailable:   { icon: "mdi:help-circle-outline",       color: "var(--disabled-text-color)",     label: "Unavailable" },
+  Available:     { color: "#888",    ledColor: "rgba(100,100,100,0.3)", label: "Available",         anim: "none" },
+  Charging:      { color: "#44b556", ledColor: "#44b556",               label: "Charging",          anim: "pulse" },
+  SuspendedEVSE: { color: "#ff9800", ledColor: "#ff9800",               label: "Suspended (EVSE)",  anim: "blink" },
+  SuspendedEV:   { color: "#ff9800", ledColor: "#ff9800",               label: "Suspended (EV)",    anim: "blink" },
+  Preparing:     { color: "#2196f3", ledColor: "#2196f3",               label: "Preparing",         anim: "blink" },
+  Finishing:     { color: "#44b556", ledColor: "#44b556",               label: "Finishing",         anim: "none" },
+  Faulted:       { color: "#db4437", ledColor: "#db4437",               label: "Faulted",           anim: "blink-fast" },
+  Offline:       { color: "#999",    ledColor: "rgba(100,100,100,0.15)", label: "Offline",           anim: "none" },
+  Unavailable:   { color: "#999",    ledColor: "rgba(100,100,100,0.15)", label: "Unavailable",       anim: "none" },
 };
 
 class CTEKNjordGoCard extends HTMLElement {
@@ -158,7 +212,6 @@ class CTEKNjordGoCard extends HTMLElement {
   }
 
   static getStubConfig(hass) {
-    // Find the first CTEK device
     if (hass.entities) {
       for (const entry of Object.values(hass.entities)) {
         if (entry.platform === "ctek" && entry.device_id) {
@@ -184,7 +237,7 @@ class CTEKNjordGoCard extends HTMLElement {
   }
 
   getCardSize() {
-    return 4;
+    return 5;
   }
 
   // ── entity discovery ───────────────────────────────────────────────────
@@ -209,7 +262,7 @@ class CTEKNjordGoCard extends HTMLElement {
       maxCurrent:       k("max_current"),
       ledIntensity:     k("led_intensity"),
       transactionId:    k("transaction_id"),
-      startDate:        f(/sensor\..*connector_start_date/),
+      startDate:        k("connector_start_date"),
     };
   }
 
@@ -236,7 +289,6 @@ class CTEKNjordGoCard extends HTMLElement {
         <div class="card-header">
           <div class="header-row">
             <div class="header-left">
-              <ha-icon class="header-icon" icon="mdi:ev-station"></ha-icon>
               <span class="title"></span>
             </div>
             <div class="header-right">
@@ -246,36 +298,40 @@ class CTEKNjordGoCard extends HTMLElement {
           </div>
         </div>
         <div class="card-content">
-          <div class="status-section">
-            <ha-icon class="status-icon"></ha-icon>
-            <div class="status-text">
-              <span class="status-label"></span>
-              <span class="status-sub"></span>
+          <div class="device-row">
+            <div class="device-illustration">
+              ${njordSvg()}
             </div>
-            <div class="charge-toggle">
-              <ha-icon class="toggle-btn" icon="mdi:power"></ha-icon>
-            </div>
-          </div>
-          <div class="metrics">
-            <div class="metric" id="m-power">
-              <ha-icon icon="mdi:flash"></ha-icon>
-              <div><span class="metric-val">\u2014</span><span class="metric-unit">W</span></div>
-              <span class="metric-label">Power</span>
-            </div>
-            <div class="metric" id="m-current">
-              <ha-icon icon="mdi:current-ac"></ha-icon>
-              <div><span class="metric-val">\u2014</span><span class="metric-unit">A</span></div>
-              <span class="metric-label">Current</span>
-            </div>
-            <div class="metric" id="m-voltage">
-              <ha-icon icon="mdi:sine-wave"></ha-icon>
-              <div><span class="metric-val">\u2014</span><span class="metric-unit">V</span></div>
-              <span class="metric-label">Voltage</span>
-            </div>
-            <div class="metric" id="m-energy">
-              <ha-icon icon="mdi:battery-charging-100"></ha-icon>
-              <div><span class="metric-val">\u2014</span><span class="metric-unit">Wh</span></div>
-              <span class="metric-label">Energy</span>
+            <div class="device-info">
+              <div class="status-section">
+                <span class="status-label"></span>
+                <span class="status-sub"></span>
+              </div>
+              <div class="metrics">
+                <div class="metric" id="m-power">
+                  <ha-icon icon="mdi:flash"></ha-icon>
+                  <span class="metric-val">\u2014</span><span class="metric-unit">W</span>
+                  <span class="metric-label">Power</span>
+                </div>
+                <div class="metric" id="m-voltage">
+                  <ha-icon icon="mdi:sine-wave"></ha-icon>
+                  <span class="metric-val">\u2014</span><span class="metric-unit">V</span>
+                  <span class="metric-label">Voltage</span>
+                </div>
+                <div class="metric" id="m-current">
+                  <ha-icon icon="mdi:current-ac"></ha-icon>
+                  <span class="metric-val">\u2014</span><span class="metric-unit">A</span>
+                  <span class="metric-label">Current</span>
+                </div>
+                <div class="metric" id="m-energy">
+                  <ha-icon icon="mdi:battery-charging-100"></ha-icon>
+                  <span class="metric-val">\u2014</span><span class="metric-unit">Wh</span>
+                  <span class="metric-label">Energy</span>
+                </div>
+              </div>
+              <div class="charge-toggle">
+                <ha-icon class="toggle-btn" icon="mdi:power"></ha-icon>
+              </div>
             </div>
           </div>
           <div class="controls">
@@ -291,10 +347,7 @@ class CTEKNjordGoCard extends HTMLElement {
       </ha-card>
     `;
 
-    // wire up toggle button
     this._root.querySelector(".toggle-btn").addEventListener("click", () => this._toggleCharge());
-
-    // wire up slider
     const slider = this._root.querySelector("#ctrl-max-current input");
     slider.addEventListener("change", (e) => this._setMaxCurrent(Number(e.target.value)));
   }
@@ -335,13 +388,11 @@ class CTEKNjordGoCard extends HTMLElement {
 
     // Connector status
     const statusVal = this._val("connectorStatus") || "unavailable";
-    const meta = STATUS_META[statusVal] || STATUS_META.Unavailable || { icon: "mdi:help-circle", color: "var(--disabled-text-color)", label: statusVal };
-    const statusIcon = r.querySelector(".status-icon");
-    statusIcon.setAttribute("icon", meta.icon);
-    statusIcon.style.color = meta.color;
+    const meta = STATUS_META[statusVal] || STATUS_META.Unavailable;
     r.querySelector(".status-label").textContent = meta.label || statusVal;
+    r.querySelector(".status-label").style.color = meta.color;
 
-    // Status subtitle (start date during charging)
+    // Status subtitle
     const startDate = this._val("startDate");
     const subText = r.querySelector(".status-sub");
     if (statusVal === "Charging" && startDate && startDate !== "unknown" && startDate !== "unavailable") {
@@ -355,7 +406,49 @@ class CTEKNjordGoCard extends HTMLElement {
       subText.textContent = "";
     }
 
-    // Toggle button visibility & state
+    // ── SVG LED update ──
+    const ledGlow = r.querySelector(".led-glow");
+    const ledBar = r.querySelector(".led-bar");
+    const svg = r.querySelector(".njord-svg");
+    if (ledGlow && ledBar) {
+      // LED color
+      ledGlow.setAttribute("fill", meta.ledColor);
+      ledGlow.setAttribute("opacity", "1");
+
+      // LED intensity from entity
+      const ledVal = this._val("ledIntensity");
+      const intensity = (ledVal && ledVal !== "unknown" && ledVal !== "unavailable")
+        ? parseFloat(ledVal) / 100 : 1;
+      ledGlow.setAttribute("opacity", String(Math.max(0.1, intensity)));
+
+      // Animation class
+      svg.classList.remove("led-pulse", "led-blink", "led-blink-fast");
+      if (meta.anim === "pulse") svg.classList.add("led-pulse");
+      else if (meta.anim === "blink") svg.classList.add("led-blink");
+      else if (meta.anim === "blink-fast") svg.classList.add("led-blink-fast");
+    }
+
+    // Battery segments (show during charging, fill based on energy)
+    const batSegs = r.querySelector(".battery-segments");
+    const isActiveSession = statusVal === "Charging" || statusVal === "SuspendedEV" ||
+      statusVal === "SuspendedEVSE" || statusVal === "Preparing" || statusVal === "Finishing";
+
+    if (batSegs) {
+      batSegs.setAttribute("opacity", isActiveSession ? "1" : "0");
+      if (isActiveSession) {
+        // Animate segments based on power level (rough visual)
+        const powerVal = parseFloat(this._val("power")) || 0;
+        const maxPower = 11000; // 11kW max
+        const ratio = Math.min(powerVal / maxPower, 1);
+        const segs = batSegs.querySelectorAll(".bat-seg");
+        segs.forEach((seg, i) => {
+          const threshold = (i + 1) / 4;
+          seg.setAttribute("opacity", ratio >= threshold ? "0.9" : "0.15");
+        });
+      }
+    }
+
+    // Toggle button
     const switchEntity = this._entities.connectorSwitch;
     const toggleBtn = r.querySelector(".charge-toggle");
     if (switchEntity) {
@@ -369,11 +462,10 @@ class CTEKNjordGoCard extends HTMLElement {
     }
 
     // Metrics
-    const isCharging = statusVal === "Charging" || statusVal === "SuspendedEV" || statusVal === "SuspendedEVSE" || statusVal === "Preparing" || statusVal === "Finishing";
     const metricsEl = r.querySelector(".metrics");
-    metricsEl.style.display = isCharging ? "" : "none";
+    metricsEl.style.display = isActiveSession ? "" : "none";
 
-    if (isCharging) {
+    if (isActiveSession) {
       this._setMetric(r, "m-power", this._val("power"));
       this._setMetric(r, "m-current", this._val("current"));
       this._setMetric(r, "m-voltage", this._val("voltage"));
@@ -413,7 +505,6 @@ class CTEKNjordGoCard extends HTMLElement {
     if (s && s.attributes && s.attributes.friendly_name) {
       return s.attributes.friendly_name.replace(/\s*Connector.*$/i, "").trim() || "Njord GO";
     }
-    // Try device registry name
     if (this._hass.devices && this._config.device_id) {
       const dev = this._hass.devices[this._config.device_id];
       if (dev) return dev.name_by_user || dev.name || "Njord GO";
@@ -460,14 +551,9 @@ class CTEKNjordGoCard extends HTMLElement {
         gap: 8px;
         min-width: 0;
       }
-      .header-icon {
-        color: var(--primary-color);
-        --mdc-icon-size: 24px;
-        flex-shrink: 0;
-      }
       .title {
-        font-size: 1.1em;
-        font-weight: 500;
+        font-size: 1.15em;
+        font-weight: 600;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -501,37 +587,48 @@ class CTEKNjordGoCard extends HTMLElement {
         color: var(--secondary-text-color);
       }
       .card-content {
-        padding: 16px;
+        padding: 12px 16px 16px;
       }
 
-      /* ── status row ── */
-      .status-section {
+      /* ── device row: SVG + info side by side ── */
+      .device-row {
         display: flex;
+        gap: 16px;
         align-items: center;
-        gap: 12px;
-        padding: 12px;
-        border-radius: var(--ctek-radius);
-        background: var(--card-background-color, var(--ha-card-background));
-        border: 1px solid var(--divider-color);
       }
-      .status-icon {
-        --mdc-icon-size: 36px;
+      .device-illustration {
         flex-shrink: 0;
+        width: 80px;
       }
-      .status-text {
+      .njord-svg {
+        width: 100%;
+        height: auto;
+        filter: drop-shadow(0 2px 6px rgba(0,0,0,0.12));
+      }
+      .device-info {
         flex: 1;
+        min-width: 0;
         display: flex;
         flex-direction: column;
-        min-width: 0;
+        gap: 10px;
+      }
+
+      /* ── status ── */
+      .status-section {
+        display: flex;
+        flex-direction: column;
       }
       .status-label {
-        font-size: 1.15em;
-        font-weight: 600;
+        font-size: 1.3em;
+        font-weight: 700;
+        line-height: 1.2;
       }
       .status-sub {
         font-size: 0.82em;
         color: var(--secondary-text-color);
       }
+
+      /* ── toggle ── */
       .charge-toggle {
         flex-shrink: 0;
       }
@@ -549,41 +646,33 @@ class CTEKNjordGoCard extends HTMLElement {
       /* ── metrics grid ── */
       .metrics {
         display: grid;
-        grid-template-columns: repeat(4, 1fr);
-        gap: 8px;
-        margin-top: 14px;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 6px;
       }
       .metric {
-        text-align: center;
-        padding: 10px 4px;
-        border-radius: var(--ctek-radius);
-        background: var(--card-background-color, var(--ha-card-background));
-        border: 1px solid var(--divider-color);
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 0.85em;
       }
       .metric ha-icon {
-        --mdc-icon-size: 20px;
+        --mdc-icon-size: 16px;
         color: var(--secondary-text-color);
-        margin-bottom: 4px;
       }
       .metric-val {
-        font-size: 1.2em;
         font-weight: 600;
       }
       .metric-unit {
         font-size: 0.8em;
         color: var(--secondary-text-color);
-        margin-left: 2px;
       }
       .metric-label {
-        display: block;
-        font-size: 0.72em;
-        color: var(--secondary-text-color);
-        margin-top: 2px;
+        display: none;
       }
 
       /* ── controls ── */
       .controls {
-        margin-top: 14px;
+        margin-top: 12px;
       }
       .control-row {
         display: flex;
@@ -591,7 +680,7 @@ class CTEKNjordGoCard extends HTMLElement {
         gap: 12px;
         padding: 8px 12px;
         border-radius: var(--ctek-radius);
-        background: var(--card-background-color, var(--ha-card-background));
+        background: var(--primary-background-color, var(--ha-card-background));
         border: 1px solid var(--divider-color);
       }
       .ctrl-label {
@@ -614,6 +703,29 @@ class CTEKNjordGoCard extends HTMLElement {
         font-weight: 500;
         min-width: 3.5em;
         text-align: right;
+      }
+
+      /* ── LED animations ── */
+      @keyframes led-pulse-kf {
+        0%, 100% { opacity: 0.4; }
+        50% { opacity: 1; }
+      }
+      @keyframes led-blink-kf {
+        0%, 49% { opacity: 1; }
+        50%, 100% { opacity: 0.15; }
+      }
+      @keyframes led-blink-fast-kf {
+        0%, 30% { opacity: 1; }
+        31%, 100% { opacity: 0.1; }
+      }
+      .led-pulse .led-glow {
+        animation: led-pulse-kf 2s ease-in-out infinite;
+      }
+      .led-blink .led-glow {
+        animation: led-blink-kf 1.5s step-end infinite;
+      }
+      .led-blink-fast .led-glow {
+        animation: led-blink-fast-kf 0.6s step-end infinite;
       }
     `;
   }
