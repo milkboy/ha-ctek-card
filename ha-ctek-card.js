@@ -20,9 +20,18 @@ function entitiesForDevice(hass, deviceId) {
   return result;
 }
 
-/** From a map of entity registry entries, find the first entity_id matching a regex */
-function findEntity(entityMap, pattern) {
-  return Object.keys(entityMap).find((eid) => pattern.test(eid));
+/** Find entity_id by translation_key (language-independent) from registry entries */
+function findByKey(entityMap, translationKey) {
+  return Object.keys(entityMap).find(
+    (eid) => entityMap[eid].translation_key === translationKey,
+  );
+}
+
+/** Find entity_id by translation_key prefix (for connector_status_1, etc.) */
+function findByKeyPrefix(entityMap, prefix) {
+  return Object.keys(entityMap).find(
+    (eid) => entityMap[eid].translation_key && entityMap[eid].translation_key.startsWith(prefix),
+  );
 }
 
 // Ensure HA lazy-loaded components (ha-device-picker etc.) are available
@@ -190,21 +199,22 @@ class CTEKNjordGoCard extends HTMLElement {
     if (!h) return;
 
     this._deviceEntities = entitiesForDevice(h, this._config.device_id);
-    const f = (pat) => findEntity(this._deviceEntities, pat);
+    const k = (key) => findByKey(this._deviceEntities, key);
+    const kp = (prefix) => findByKeyPrefix(this._deviceEntities, prefix);
 
     this._entities = {
-      connectorStatus:  f(/sensor\..*connector_status/),
-      connectorSwitch:  f(/switch\..*connector_charging/),
-      online:           f(/binary_sensor\..*online/),
-      cable:            f(/binary_sensor\..*cable_connected/),
-      firmware:         f(/binary_sensor\..*firmware/),
-      energy:           f(/sensor\..*wh_consumed/),
-      voltage:          f(/sensor\..*voltage/),
-      current:          f(/sensor\..*current/),
-      power:            f(/sensor\..*power/),
-      maxCurrent:       f(/number\..*max_current/),
-      ledIntensity:     f(/number\..*led_intensity/),
-      transactionId:    f(/sensor\..*transaction_id/),
+      connectorStatus:  kp("connector_status"),
+      connectorSwitch:  kp("connector_charging"),
+      online:           k("online"),
+      cable:            kp("cable_connected"),
+      firmware:         k("firmware_available"),
+      energy:           k("wh_consumed"),
+      voltage:          k("voltage"),
+      current:          k("current"),
+      power:            k("power"),
+      maxCurrent:       k("max_current"),
+      ledIntensity:     k("led_intensity"),
+      transactionId:    k("transaction_id"),
       startDate:        f(/sensor\..*connector_start_date/),
     };
   }
