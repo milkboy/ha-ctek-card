@@ -46,38 +46,42 @@ class CTEKNjordGoCardEditor extends HTMLElement {
   _render() {
     if (!this._hass) return;
 
-    // find all ctek entities to offer in the dropdown
-    const ctekEntities = Object.keys(this._hass.states)
-      .filter((eid) => eid.includes("ctek_"))
-      .filter((eid) => /connector_status/.test(eid) || /connector_charging/.test(eid))
-      .sort();
+    // Only rebuild DOM on first render; subsequent calls just update values
+    if (!this._rendered) {
+      this.innerHTML = `
+        <div style="padding: 16px;">
+          <p><b>CTEK Njord GO Card</b></p>
+          <p style="margin-bottom:12px;color:var(--secondary-text-color);font-size:0.9em;">
+            Pick any CTEK entity – all related entities for the same device will be discovered automatically.
+          </p>
+          <ha-entity-picker
+            allow-custom-entity
+          ></ha-entity-picker>
+          <label for="title" style="display:block;margin-top:12px;margin-bottom:4px;font-weight:500;">Title (optional)</label>
+          <input id="title" type="text"
+            style="width:100%;padding:8px;border-radius:4px;border:1px solid var(--divider-color);background:var(--card-background-color);color:var(--primary-text-color);box-sizing:border-box;"
+            placeholder="Njord GO" />
+        </div>
+      `;
 
-    this.innerHTML = `
-      <div style="padding: 16px;">
-        <p><b>CTEK Njord GO Card</b></p>
-        <p style="margin-bottom:12px;color:var(--secondary-text-color);font-size:0.9em;">
-          Pick any CTEK entity – all related entities for the same device will be discovered automatically.
-        </p>
-        <label for="entity" style="display:block;margin-bottom:4px;font-weight:500;">Entity</label>
-        <select id="entity" style="width:100%;padding:8px;border-radius:4px;border:1px solid var(--divider-color);background:var(--card-background-color);color:var(--primary-text-color);">
-          <option value="">— select —</option>
-          ${ctekEntities.map((e) => `<option value="${e}" ${e === this._config.entity ? "selected" : ""}>${e}</option>`).join("")}
-        </select>
-        <label for="title" style="display:block;margin-top:12px;margin-bottom:4px;font-weight:500;">Title (optional)</label>
-        <input id="title" type="text" value="${this._config.title || ""}"
-          style="width:100%;padding:8px;border-radius:4px;border:1px solid var(--divider-color);background:var(--card-background-color);color:var(--primary-text-color);box-sizing:border-box;"
-          placeholder="Njord GO" />
-      </div>
-    `;
+      const picker = this.querySelector("ha-entity-picker");
+      picker.addEventListener("value-changed", (ev) => {
+        this._config = { ...this._config, entity: ev.detail.value };
+        this._dispatch();
+      });
+      this.querySelector("#title").addEventListener("input", (ev) => {
+        this._config = { ...this._config, title: ev.target.value };
+        this._dispatch();
+      });
+      this._rendered = true;
+    }
 
-    this.querySelector("#entity").addEventListener("change", (ev) => {
-      this._config = { ...this._config, entity: ev.target.value };
-      this._dispatch();
-    });
-    this.querySelector("#title").addEventListener("input", (ev) => {
-      this._config = { ...this._config, title: ev.target.value };
-      this._dispatch();
-    });
+    // Update values on every render (hass or config change)
+    const picker = this.querySelector("ha-entity-picker");
+    picker.hass = this._hass;
+    picker.value = this._config.entity || "";
+    picker.label = "Entity (any CTEK entity)";
+    this.querySelector("#title").value = this._config.title || "";
   }
 
   _dispatch() {
