@@ -20,17 +20,12 @@ function entitiesForDevice(hass, deviceId) {
   return result;
 }
 
-/** Find entity_id by translation_key (language-independent) from registry entries */
+/** Find entity_id by translation_key (language-independent) from registry entries.
+ *  translation_key is the same for all connectors (e.g. "connector_status"),
+ *  the connector number is only in translation_placeholders, not the key. */
 function findByKey(entityMap, translationKey) {
   return Object.keys(entityMap).find(
     (eid) => entityMap[eid].translation_key === translationKey,
-  );
-}
-
-/** Find entity_id by translation_key prefix (for connector_status_1, etc.) */
-function findByKeyPrefix(entityMap, prefix) {
-  return Object.keys(entityMap).find(
-    (eid) => entityMap[eid].translation_key && entityMap[eid].translation_key.startsWith(prefix),
   );
 }
 
@@ -200,13 +195,12 @@ class CTEKNjordGoCard extends HTMLElement {
 
     this._deviceEntities = entitiesForDevice(h, this._config.device_id);
     const k = (key) => findByKey(this._deviceEntities, key);
-    const kp = (prefix) => findByKeyPrefix(this._deviceEntities, prefix);
 
     this._entities = {
-      connectorStatus:  kp("connector_status"),
-      connectorSwitch:  kp("connector_charging"),
+      connectorStatus:  k("connector_status"),
+      connectorSwitch:  k("connector_charging"),
       online:           k("online"),
-      cable:            kp("cable_connected"),
+      cable:            k("cable_connected"),
       firmware:         k("firmware_available"),
       energy:           k("wh_consumed"),
       voltage:          k("voltage"),
