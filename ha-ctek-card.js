@@ -1,4 +1,4 @@
-const CARD_VERSION = "0.4.1";
+const CARD_VERSION = "0.4.2";
 
 console.info(
   `%c CTEK-NJORD-GO-CARD %c v${CARD_VERSION} `,
@@ -421,9 +421,13 @@ class CTEKNjordGoCard extends HTMLElement {
       cableBadge.style.display = "none";
     }
 
-    // Connector status
-    const statusVal = this._val("connectorStatus") || "unavailable";
-    const meta = STATUS_META[statusVal] || STATUS_META.Unavailable;
+    // Connector status — match case-insensitively since integration may use lowercase
+    const statusRaw = this._val("connectorStatus") || "unavailable";
+    const metaKey = Object.keys(STATUS_META).find(
+      (k) => k.toLowerCase() === statusRaw.toLowerCase(),
+    );
+    const statusVal = metaKey || statusRaw;
+    const meta = STATUS_META[metaKey] || STATUS_META.Unavailable;
     r.querySelector(".status-label").textContent = meta.label || statusVal;
     r.querySelector(".status-label").style.color = meta.color;
 
@@ -499,10 +503,15 @@ class CTEKNjordGoCard extends HTMLElement {
     }
 
     // Key metrics — always visible: power in kW, energy in kWh
-    const powerRaw = this._val("power");
-    const energyRaw = this._val("energy");
-    this._setKeyMetric(r, "m-power", powerRaw, 1000, 1);  // W → kW
-    this._setKeyMetric(r, "m-energy", energyRaw, 1000, 2); // Wh → kWh
+    const powerState = this._state("power");
+    const powerUnit = powerState?.attributes?.unit_of_measurement;
+    const powerDivisor = powerUnit === "W" ? 1000 : 1;
+    this._setKeyMetric(r, "m-power", powerState?.state, powerDivisor, 1);
+
+    const energyState = this._state("energy");
+    const energyUnit = energyState?.attributes?.unit_of_measurement;
+    const energyDivisor = energyUnit === "Wh" ? 1000 : 1;
+    this._setKeyMetric(r, "m-energy", energyState?.state, energyDivisor, 2);
 
     // Secondary metrics — only during active session
     const secondaryEl = r.querySelector(".secondary-metrics");
