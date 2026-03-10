@@ -69,7 +69,10 @@ class CTEKNjordGoCardEditor extends HTMLElement {
 
       this._picker = document.createElement("ha-entity-picker");
       this._picker.allowCustomEntity = true;
-      this._picker.entityFilter = (entity) => entity.entity_id.includes("ctek_");
+      this._picker.entityFilter = (entity) => {
+        const reg = this._hass?.entities?.[entity.entity_id];
+        return reg ? reg.platform === "ctek" : entity.entity_id.includes("ctek_");
+      };
       wrapper.appendChild(this._picker);
 
       this._picker.addEventListener("value-changed", (ev) => {
