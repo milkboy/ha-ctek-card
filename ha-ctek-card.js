@@ -187,15 +187,15 @@ customElements.define("ctek-njord-go-card-editor", CTEKNjordGoCardEditor);
 // ── Main card ────────────────────────────────────────────────────────────────
 
 const STATUS_META = {
-  Available:     { color: "#888",    ledColor: "rgba(100,100,100,0.3)", label: "Available",         anim: "none" },
-  Charging:      { color: "#44b556", ledColor: "#44b556",               label: "Charging",          anim: "pulse" },
-  SuspendedEVSE: { color: "#ff9800", ledColor: "#ff9800",               label: "Suspended (EVSE)",  anim: "blink" },
-  SuspendedEV:   { color: "#ff9800", ledColor: "#ff9800",               label: "Suspended (EV)",    anim: "blink" },
-  Preparing:     { color: "#2196f3", ledColor: "#2196f3",               label: "Preparing",         anim: "blink" },
-  Finishing:     { color: "#44b556", ledColor: "#44b556",               label: "Finishing",         anim: "none" },
-  Faulted:       { color: "#db4437", ledColor: "#db4437",               label: "Faulted",           anim: "blink-fast" },
-  Offline:       { color: "#999",    ledColor: "rgba(100,100,100,0.15)", label: "Offline",           anim: "none" },
-  Unavailable:   { color: "#999",    ledColor: "rgba(100,100,100,0.15)", label: "Unavailable",       anim: "none" },
+  Available:     { color: "#888",    ledColor: "rgba(100,100,100,0.3)", label: "Available",         anim: "none",  bars: 0 },
+  Charging:      { color: "#44b556", ledColor: "#44b556",               label: "Charging",          anim: "pulse", bars: "loop" },
+  SuspendedEVSE: { color: "#ff9800", ledColor: "#ff9800",               label: "Suspended (EVSE)",  anim: "none",  bars: 2 },
+  SuspendedEV:   { color: "#ff9800", ledColor: "#ff9800",               label: "Suspended (EV)",    anim: "none",  bars: 4 },
+  Preparing:     { color: "#2196f3", ledColor: "#2196f3",               label: "Preparing",         anim: "blink", bars: 0 },
+  Finishing:     { color: "#44b556", ledColor: "#44b556",               label: "Finishing",         anim: "none",  bars: 4 },
+  Faulted:       { color: "#db4437", ledColor: "#db4437",               label: "Faulted",           anim: "none",  bars: 0 },
+  Offline:       { color: "#999",    ledColor: "rgba(100,100,100,0.15)", label: "Offline",           anim: "none",  bars: 0 },
+  Unavailable:   { color: "#999",    ledColor: "rgba(100,100,100,0.15)", label: "Unavailable",       anim: "none",  bars: 0 },
 };
 
 class CTEKNjordGoCard extends HTMLElement {
@@ -342,6 +342,13 @@ class CTEKNjordGoCard extends HTMLElement {
                 <input type="range" min="6" max="16" step="2" />
               </div>
             </div>
+            <div class="control-row" id="ctrl-led" style="display:none;">
+              <span class="ctrl-label">LED brightness</span>
+              <div class="ctrl-slider">
+                <span class="ctrl-val"></span>
+                <input type="range" min="0" max="100" step="1" />
+              </div>
+            </div>
           </div>
         </div>
       </ha-card>
@@ -350,6 +357,29 @@ class CTEKNjordGoCard extends HTMLElement {
     this._root.querySelector(".toggle-btn").addEventListener("click", () => this._toggleCharge());
     const slider = this._root.querySelector("#ctrl-max-current input");
     slider.addEventListener("change", (e) => this._setMaxCurrent(Number(e.target.value)));
+    const ledSlider = this._root.querySelector("#ctrl-led input");
+    ledSlider.addEventListener("change", (e) => this._setLedIntensity(Number(e.target.value)));
+
+    // Charging bar loop animation (cycles 0→1→2→3→4→0… every 800ms)
+    this._barFrame = 0;
+    this._barTimer = setInterval(() => {
+      if (!this._root) return;
+      const statusVal = this._val("connectorStatus");
+      const meta = STATUS_META[statusVal] || STATUS_META.Unavailable;
+      if (meta.bars !== "loop") return;
+      this._barFrame = (this._barFrame + 1) % 5; // 0,1,2,3,4
+      const segs = this._root.querySelectorAll(".bat-seg");
+      segs.forEach((seg, i) => {
+        seg.setAttribute("opacity", i < this._barFrame ? "0.9" : "0.15");
+      });
+    }, 800);
+  }
+
+  disconnectedCallback() {
+    if (this._barTimer) {
+      clearInterval(this._barTimer);
+      this._barTimer = null;
+    }
   }
 
   // ── update ─────────────────────────────────────────────────────────────
@@ -428,25 +458,27 @@ class CTEKNjordGoCard extends HTMLElement {
       else if (meta.anim === "blink-fast") svg.classList.add("led-blink-fast");
     }
 
-    // Battery segments (show during charging, fill based on energy)
+    // Battery segments — static bar counts per state; "loop" handled by timer
     const batSegs = r.querySelector(".battery-segments");
-    const isActiveSession = statusVal === "Charging" || statusVal === "SuspendedEV" ||
-      statusVal === "SuspendedEVSE" || statusVal === "Preparing" || statusVal === "Finishing";
+    const bars = meta.bars;
+    const showBars = bars === "loop" || (typeof bars === "number" && bars > 0);
 
     if (batSegs) {
-      batSegs.setAttribute("opacity", isActiveSession ? "1" : "0");
-      if (isActiveSession) {
-        // Animate segments based on power level (rough visual)
-        const powerVal = parseFloat(this._val("power")) || 0;
-        const maxPower = 11000; // 11kW max
-        const ratio = Math.min(powerVal / maxPower, 1);
-        const segs = batSegs.querySelectorAll(".bat-seg");
+      batSegs.setAttribute("opacity", showBars ? "1" : "0");
+      // Color segments to match status
+      const segColor = meta.color;
+      const segs = batSegs.querySelectorAll(".bat-seg");
+      segs.forEach((seg) => seg.setAttribute("fill", segColor));
+      // Set static bar fill for non-looping states
+      if (typeof bars === "number" && bars > 0) {
         segs.forEach((seg, i) => {
-          const threshold = (i + 1) / 4;
-          seg.setAttribute("opacity", ratio >= threshold ? "0.9" : "0.15");
+          seg.setAttribute("opacity", i < bars ? "0.9" : "0.15");
         });
       }
     }
+
+    const isActiveSession = statusVal === "Charging" || statusVal === "SuspendedEV" ||
+      statusVal === "SuspendedEVSE" || statusVal === "Preparing" || statusVal === "Finishing";
 
     // Toggle button
     const switchEntity = this._entities.connectorSwitch;
@@ -487,6 +519,22 @@ class CTEKNjordGoCard extends HTMLElement {
     } else {
       ctrlRow.style.display = "none";
     }
+
+    // LED intensity slider
+    const ledState = this._state("ledIntensity");
+    const ledRow = r.querySelector("#ctrl-led");
+    if (ledState) {
+      ledRow.style.display = "";
+      const ledSlider = ledRow.querySelector("input");
+      const ledAttrs = ledState.attributes || {};
+      if (ledAttrs.min !== undefined) ledSlider.min = ledAttrs.min;
+      if (ledAttrs.max !== undefined) ledSlider.max = ledAttrs.max;
+      if (ledAttrs.step !== undefined) ledSlider.step = ledAttrs.step;
+      ledSlider.value = ledState.state;
+      ledRow.querySelector(".ctrl-val").textContent = `${ledState.state}%`;
+    } else {
+      ledRow.style.display = "none";
+    }
   }
 
   _setMetric(root, id, val) {
@@ -522,6 +570,12 @@ class CTEKNjordGoCard extends HTMLElement {
 
   _setMaxCurrent(value) {
     const eid = this._entities.maxCurrent;
+    if (!eid || !this._hass) return;
+    this._hass.callService("number", "set_value", { entity_id: eid, value });
+  }
+
+  _setLedIntensity(value) {
+    const eid = this._entities.ledIntensity;
     if (!eid || !this._hass) return;
     this._hass.callService("number", "set_value", { entity_id: eid, value });
   }
@@ -673,6 +727,9 @@ class CTEKNjordGoCard extends HTMLElement {
       /* ── controls ── */
       .controls {
         margin-top: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
       }
       .control-row {
         display: flex;
