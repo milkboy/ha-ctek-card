@@ -1,4 +1,4 @@
-const CARD_VERSION = "0.4.2";
+const CARD_VERSION = "0.4.3";
 
 console.info(
   `%c CTEK-NJORD-GO-CARD %c v${CARD_VERSION} `,
@@ -196,6 +196,7 @@ const STATUS_META = {
   Faulted:       { color: "#db4437", ledColor: "#db4437",               label: "Faulted",           anim: "none",  bars: 0 },
   Offline:       { color: "#999",    ledColor: "rgba(100,100,100,0.15)", label: "Offline",           anim: "none",  bars: 0 },
   Unavailable:   { color: "#999",    ledColor: "rgba(100,100,100,0.15)", label: "Unavailable",       anim: "none",  bars: 0 },
+  Unknown:       { color: "#999",    ledColor: "rgba(100,100,100,0.15)", label: "Unknown",           anim: "none",  bars: 0 },
 };
 
 class CTEKNjordGoCard extends HTMLElement {
