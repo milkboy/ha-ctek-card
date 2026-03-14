@@ -1,4 +1,4 @@
-const CARD_VERSION = "0.4.3";
+const CARD_VERSION = "0.4.4";
 
 console.info(
   `%c CTEK-NJORD-GO-CARD %c v${CARD_VERSION} `,
@@ -149,6 +149,20 @@ class CTEKNjordGoCardEditor extends HTMLElement {
         this._dispatch();
       });
 
+      const displayLabel = document.createElement("p");
+      displayLabel.style.cssText = "margin-top:16px;margin-bottom:6px;font-weight:500;";
+      displayLabel.textContent = "Display options";
+      wrapper.appendChild(displayLabel);
+
+      this._chkVoltage = this._makeCheckbox(wrapper, "Show voltage", (v) => {
+        this._config = { ...this._config, show_voltage: v };
+        this._dispatch();
+      });
+      this._chkCurrent = this._makeCheckbox(wrapper, "Show current (ampere)", (v) => {
+        this._config = { ...this._config, show_current: v };
+        this._dispatch();
+      });
+
       this.appendChild(wrapper);
       this._rendered = true;
     }
@@ -170,6 +184,22 @@ class CTEKNjordGoCardEditor extends HTMLElement {
     };
 
     this._titleInput.value = this._config.title || "";
+    this._chkVoltage.checked = this._config.show_voltage !== false;
+    this._chkCurrent.checked = this._config.show_current !== false;
+  }
+
+  _makeCheckbox(parent, labelText, onChange) {
+    const row = document.createElement("label");
+    row.style.cssText = "display:flex;align-items:center;gap:8px;margin-bottom:6px;cursor:pointer;";
+    const chk = document.createElement("input");
+    chk.type = "checkbox";
+    chk.addEventListener("change", (ev) => onChange(ev.target.checked));
+    const span = document.createElement("span");
+    span.textContent = labelText;
+    row.appendChild(chk);
+    row.appendChild(span);
+    parent.appendChild(row);
+    return chk;
   }
 
   _dispatch() {
@@ -422,10 +452,11 @@ class CTEKNjordGoCard extends HTMLElement {
       cableBadge.style.display = "none";
     }
 
-    // Connector status — match case-insensitively since integration may use lowercase
+    // Connector status — normalize underscores and case (e.g. "suspended_evse" → SuspendedEVSE)
     const statusRaw = this._val("connectorStatus") || "unavailable";
+    const normalize = (s) => s.toLowerCase().replace(/_/g, "");
     const metaKey = Object.keys(STATUS_META).find(
-      (k) => k.toLowerCase() === statusRaw.toLowerCase(),
+      (k) => normalize(k) === normalize(statusRaw),
     );
     const statusVal = metaKey || statusRaw;
     const meta = STATUS_META[metaKey] || STATUS_META.Unavailable;
@@ -514,12 +545,19 @@ class CTEKNjordGoCard extends HTMLElement {
     const energyDivisor = energyUnit === "Wh" ? 1000 : 1;
     this._setKeyMetric(r, "m-energy", energyState?.state, energyDivisor, 2);
 
-    // Secondary metrics — only during active session
+    // Secondary metrics — only during active session, respecting config visibility
+    const showVoltage = this._config.show_voltage !== false;
+    const showCurrent = this._config.show_current !== false;
+    const voltageEl = r.querySelector("#m-voltage");
+    const currentEl = r.querySelector("#m-current");
+    if (voltageEl) voltageEl.style.display = showVoltage ? "" : "none";
+    if (currentEl) currentEl.style.display = showCurrent ? "" : "none";
     const secondaryEl = r.querySelector(".secondary-metrics");
-    secondaryEl.style.display = isActiveSession ? "" : "none";
+    const anyVisible = showVoltage || showCurrent;
+    secondaryEl.style.display = (isActiveSession && anyVisible) ? "" : "none";
     if (isActiveSession) {
-      this._setMetric(r, "m-voltage", this._val("voltage"));
-      this._setMetric(r, "m-current", this._val("current"));
+      if (showVoltage) this._setMetric(r, "m-voltage", this._val("voltage"));
+      if (showCurrent) this._setMetric(r, "m-current", this._val("current"));
     }
 
     // Max current slider
