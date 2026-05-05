@@ -465,7 +465,11 @@ class CTEKNjordGoCard extends HTMLElement {
     if (statusVal === "Charging" && startDate && startDate !== "unknown" && startDate !== "unavailable") {
       try {
         const d = new Date(startDate);
-        subText.textContent = `since ${d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+        const locale = this.hass?.locale?.language || navigator.language || "en";
+        const timeZone = this.hass?.config?.time_zone || undefined;
+        const opts = { hour: "2-digit", minute: "2-digit" };
+        if (timeZone) opts.timeZone = timeZone;
+        subText.textContent = `since ${d.toLocaleTimeString(locale, opts)}`;
       } catch {
         subText.textContent = "";
       }
