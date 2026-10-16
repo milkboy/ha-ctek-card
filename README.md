@@ -4,7 +4,7 @@ A Home Assistant Lovelace card for the CTEK Njord GO EV charger. It shows the co
 
 ![CTEK Njord GO card](images/card.png)
 
-_The screenshot shows a charger in the Offline state with the CTEK cloud integration._
+_The screenshot shows a charger using the OCPP integration after a finished session._
 
 ## Supported integrations
 
