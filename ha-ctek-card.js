@@ -45,6 +45,7 @@ const OCPP_SUFFIXES = {
   power: "power_active_import",
   maxCurrent: "maximum_current",
   transactionId: "transaction_id",
+  timeSession: "time_session",
 };
 
 /** Find entity_id by its object_id suffix (OCPP integration). */
@@ -346,7 +347,6 @@ class CTEKNjordGoCard extends HTMLElement {
       if (key === "cable") {
         return status ? (OCPP_PLUGGED.includes(status.state) ? "on" : "off") : undefined;
       }
-      if (key === "startDate") return status?.last_changed;
     }
     const s = this._state(key);
     return s ? s.state : undefined;
@@ -509,7 +509,10 @@ class CTEKNjordGoCard extends HTMLElement {
     // Status subtitle
     const startDate = this._val("startDate");
     const subText = r.querySelector(".status-sub");
-    if (statusVal === "Charging" && startDate && startDate !== "unknown" && startDate !== "unavailable") {
+    if (this._backend === "ocpp") {
+      // OCPP has no start date; time_session counts only the time spent actually charging
+      subText.textContent = statusVal === "Charging" ? this._chargingDurationText() : "";
+    } else if (statusVal === "Charging" && startDate && startDate !== "unknown" && startDate !== "unavailable") {
       try {
         const d = new Date(startDate);
         const locale = this.hass?.locale?.language || navigator.language || "en";
@@ -639,6 +642,18 @@ class CTEKNjordGoCard extends HTMLElement {
     } else {
       el.textContent = "\u2014";
     }
+  }
+
+  /** "for 1 h 20 min" from the OCPP time_session sensor (minutes unless the unit says otherwise) */
+  _chargingDurationText() {
+    const st = this._state("timeSession");
+    const raw = parseFloat(st?.state);
+    if (isNaN(raw)) return "";
+    const unit = st.attributes?.unit_of_measurement;
+    const mins = Math.round(unit === "s" ? raw / 60 : unit === "h" ? raw * 60 : raw);
+    if (mins < 1) return "";
+    const h = Math.floor(mins / 60);
+    return `for ${h ? h + " h " : ""}${mins % 60} min`;
   }
 
   _deviceName() {
