@@ -1,4 +1,4 @@
-const CARD_VERSION = "0.4.4";
+const CARD_VERSION = "0.5.0";
 
 console.info(
   `%c CTEK-NJORD-GO-CARD %c v${CARD_VERSION} `,
@@ -27,6 +27,30 @@ function findByKey(entityMap, translationKey) {
   return Object.keys(entityMap).find(
     (eid) => entityMap[eid].translation_key === translationKey,
   );
+}
+
+/** Integration platforms the card can work with. */
+const PLATFORMS = ["ctek", "ocpp"];
+
+/** OCPP connector statuses that mean "a car is plugged in". */
+const OCPP_PLUGGED = ["Preparing", "Charging", "SuspendedEV", "SuspendedEVSE", "Finishing"];
+
+/** Entity ID suffixes of the OCPP integration (entity_id = <domain>.<charger>_<suffix>).
+ *  Entries missing here (voltage, LED intensity) are not provided by OCPP and stay hidden. */
+const OCPP_SUFFIXES = {
+  connectorStatus: "status_connector",
+  connectorSwitch: "charge_control",
+  energy: "energy_session",
+  current: "current_import",
+  power: "power_active_import",
+  maxCurrent: "maximum_current",
+  transactionId: "transaction_id",
+  timeSession: "time_session",
+};
+
+/** Find entity_id by its object_id suffix (OCPP integration). */
+function findBySuffix(entityMap, suffix) {
+  return Object.keys(entityMap).find((eid) => eid.split(".")[1]?.endsWith("_" + suffix));
 }
 
 // Ensure HA lazy-loaded components (ha-device-picker etc.) are available
@@ -166,11 +190,11 @@ class CTEKNjordGoCardEditor extends HTMLElement {
     this._picker.value = this._config.device_id || "";
     this._picker.label = "Device";
 
-    // Filter to CTEK integration devices only
+    // Filter to CTEK / OCPP integration devices only
     this._picker.deviceFilter = (device) => {
       if (!this._hass.entities) return true;
       for (const entry of Object.values(this._hass.entities)) {
-        if (entry.device_id === device.id && entry.platform === "ctek") {
+        if (entry.device_id === device.id && PLATFORMS.includes(entry.platform)) {
           return true;
         }
       }
@@ -226,6 +250,7 @@ const STATUS_META = {
 class CTEKNjordGoCard extends HTMLElement {
   _config = {};
   _hass;
+  _backend = "ctek";
   _deviceEntities = {};
   _entities = {};
   _root;
@@ -239,7 +264,7 @@ class CTEKNjordGoCard extends HTMLElement {
   static getStubConfig(hass) {
     if (hass.entities) {
       for (const entry of Object.values(hass.entities)) {
-        if (entry.platform === "ctek" && entry.device_id) {
+        if (PLATFORMS.includes(entry.platform) && entry.device_id) {
           return { device_id: entry.device_id, title: "" };
         }
       }
@@ -275,6 +300,18 @@ class CTEKNjordGoCard extends HTMLElement {
     if (!h) return;
 
     this._deviceEntities = entitiesForDevice(h, this._config.device_id);
+    this._backend = Object.values(this._deviceEntities).some((e) => e.platform === "ocpp")
+      ? "ocpp"
+      : "ctek";
+
+    if (this._backend === "ocpp") {
+      this._entities = {};
+      for (const [key, suffix] of Object.entries(OCPP_SUFFIXES)) {
+        this._entities[key] = findBySuffix(this._deviceEntities, suffix);
+      }
+      return;
+    }
+
     const k = (key) => findByKey(this._deviceEntities, key);
 
     this._entities = {
@@ -301,6 +338,16 @@ class CTEKNjordGoCard extends HTMLElement {
   }
 
   _val(key) {
+    // OCPP has no entities for these, so they are derived from the connector status
+    if (this._backend === "ocpp") {
+      const status = this._state("connectorStatus");
+      if (key === "online") {
+        return status ? (["unavailable", "unknown"].includes(status.state) ? "off" : "on") : undefined;
+      }
+      if (key === "cable") {
+        return status ? (OCPP_PLUGGED.includes(status.state) ? "on" : "off") : undefined;
+      }
+    }
     const s = this._state(key);
     return s ? s.state : undefined;
   }
@@ -462,7 +509,10 @@ class CTEKNjordGoCard extends HTMLElement {
     // Status subtitle
     const startDate = this._val("startDate");
     const subText = r.querySelector(".status-sub");
-    if (statusVal === "Charging" && startDate && startDate !== "unknown" && startDate !== "unavailable") {
+    if (this._backend === "ocpp") {
+      // OCPP has no start date; time_session counts only the time spent actually charging
+      subText.textContent = statusVal === "Charging" ? this._chargingDurationText() : "";
+    } else if (statusVal === "Charging" && startDate && startDate !== "unknown" && startDate !== "unavailable") {
       try {
         const d = new Date(startDate);
         const locale = this.hass?.locale?.language || navigator.language || "en";
@@ -594,9 +644,21 @@ class CTEKNjordGoCard extends HTMLElement {
     }
   }
 
+  /** "for 1 h 20 min" from the OCPP time_session sensor (minutes unless the unit says otherwise) */
+  _chargingDurationText() {
+    const st = this._state("timeSession");
+    const raw = parseFloat(st?.state);
+    if (isNaN(raw)) return "";
+    const unit = st.attributes?.unit_of_measurement;
+    const mins = Math.round(unit === "s" ? raw / 60 : unit === "h" ? raw * 60 : raw);
+    if (mins < 1) return "";
+    const h = Math.floor(mins / 60);
+    return `for ${h ? h + " h " : ""}${mins % 60} min`;
+  }
+
   _deviceName() {
     const s = this._state("connectorStatus");
-    if (s && s.attributes && s.attributes.friendly_name) {
+    if (this._backend !== "ocpp" && s && s.attributes && s.attributes.friendly_name) {
       return s.attributes.friendly_name.replace(/\s*Connector.*$/i, "").trim() || "Njord GO";
     }
     if (this._hass.devices && this._config.device_id) {
