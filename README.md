@@ -2,9 +2,10 @@
 
 A Home Assistant Lovelace card for the CTEK Njord GO EV charger. It shows the connector status, power, session energy and cable/online state, and lets you start or stop charging and set the maximum current.
 
-![CTEK Njord GO card](images/card.png)
-
-_The screenshot shows a charger in the Offline state with the CTEK cloud integration._
+| OCPP integration | CTEK cloud integration |
+|---|---|
+| ![Card with the OCPP integration](images/card-ocpp.png) | ![Card with the CTEK cloud integration](images/card-ctek-cloud.png) |
+| After a finished session. | Charger offline. Voltage and LED rows are shown when the integration provides them. |
 
 ## Supported integrations
 
